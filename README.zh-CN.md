@@ -12,6 +12,7 @@
 - [Dashboard 的完整制作过程](#dashboard-的完整制作过程)
 - [部署到已有 Splunk Enterprise 系统](#部署到已有-splunk-enterprise-系统)
 - [部署验证](#部署验证)
+- [使用新 CSV 更新 Dashboard 数据](#使用新-csv-更新-dashboard-数据)
 - [Dashboard 使用说明](#dashboard-使用说明)
 - [指标定义](#指标定义)
 - [维护与故障排查](#维护与故障排查)
@@ -321,6 +322,198 @@ tar -czf banking_model_economics-1.1.0.spl banking_model_economics
 8. 最后的 Data integrity 面板无需滚动即可显示全部六项检查。
 9. Dataset version `1, 6` 会产生可比性告警。
 
+## 使用新 CSV 更新 Dashboard 数据
+
+Dashboard 在每次面板搜索执行时通过 `inputlookup` 读取 `banking_cn_economics.csv`。因此，只要新 CSV 保持相同 schema，就可以在不重新设计可视化的情况下更新 Dashboard。该操作应作为受控的快照替换：先验证候选文件，确保仓库源文件与 App 内 lookup 完全相同，部署文件，最后再次验证正式 lookup。
+
+### 1. 判断是否属于兼容的数据更新
+
+满足以下条件时，可以作为仅数据更新处理：
+
+- 文件名仍为 `banking_cn_economics.csv`。
+- 表头字段名和字段含义保持不变。
+- 每个物理 CSV 行仍代表一条根 Trace。
+- `experiment_id + trace_id` 仍然唯一。
+- 数值字段仍包含可解析的数值。
+- 长文本中的字面换行仍采用编码形式，避免一条 Trace 占用多个物理 CSV 记录。
+
+替换快照会移除新文件中不存在的旧行。如果必须保留历史数据，应有意将新 CSV 构建为累计快照，并确保所有新旧复合主键仍然唯一。Dashboard 没有时间选择器；除非使用筛选器限制，否则它会聚合文件中包含的全部 Experiment。
+
+以下变化不属于仅数据更新，必须同步修改 SPL、Dashboard、验证规则和文档：
+
+- 重命名或删除字段。
+- 改变单位，例如将秒改为毫秒，或将 USD 改为其他货币。
+- 改变 Supervisor、成本、Judge、合格或 readiness 字段的含义。
+- 改变每行对应一条根 Trace 的数据粒度。
+
+新增模型、Experiment、Dataset version 或场景时，下拉搜索会自动识别。没有显式颜色映射的新图表序列会使用 Splunk 默认配色。如果 Experiment 不再恰好包含 6 条 Trace，完整性面板会发出告警，同时应检查面向 Trace 的布局是否仍然易于阅读。
+
+### 2. 保留当前版本并暂存候选文件
+
+候选文件通过验证前，不要覆盖已经验收的快照。将新导出文件暂时保存在两个正式仓库路径之外，例如：
+
+```text
+/path/to/export/banking_cn_economics.csv
+```
+
+记录当前仓库 revision，或按正常源代码管理流程保存备份，以便恢复先前的数据集和 App 版本。然后比较基本文件属性：
+
+```bash
+file /path/to/export/banking_cn_economics.csv
+head -n 1 /path/to/export/banking_cn_economics.csv > /tmp/new-banking-header.txt
+head -n 1 banking_cn_economics/banking_cn_economics.csv > /tmp/current-banking-header.txt
+cmp /tmp/current-banking-header.txt /tmp/new-banking-header.txt
+```
+
+表头比较不应产生任何输出。确认候选文件为 UTF-8 文本，并且长文本字段没有引入非预期的物理记录。当带引号字段可能包含真实换行时，简单的行数统计不能替代 CSV 解析。
+
+### 3. 在 Splunk 中使用临时名称验证候选文件
+
+最稳妥的生产流程是在替换正式文件前，将新文件作为临时 lookup 提供。将它复制或上传到同一个 App，并命名为：
+
+```text
+banking_cn_economics_candidate.csv
+```
+
+使用带 `.csv` 的明确文件名执行 `inputlookup` 时，这项临时测试不需要永久 lookup definition。请在 **Banking Model Economics** App 上下文中运行以下搜索。
+
+检查数据量、维度、唯一性和 readiness：
+
+```spl
+| inputlookup banking_cn_economics_candidate.csv
+| stats count AS rows
+        dc(experiment_id) AS experiments
+        dc(application_model) AS models
+        dc(dataset_version) AS dataset_versions
+        dc(trace_id) AS unique_trace_ids
+        dc(eval(experiment_id."::".trace_id)) AS unique_keys
+        sum(comparison_ready) AS comparison_ready_rows
+| eval key_status=if(rows=unique_keys,"OK","CHECK DUPLICATES")
+```
+
+查找重复复合主键；有效结果应返回零行：
+
+```spl
+| inputlookup banking_cn_economics_candidate.csv
+| stats count AS rows by experiment_id trace_id
+| where rows!=1
+```
+
+检查核心数值字段和标识字段是否缺失：
+
+```spl
+| inputlookup banking_cn_economics_candidate.csv
+| where isnull(experiment_id) OR isnull(trace_id)
+     OR isnull(application_model) OR isnull(dataset_version)
+     OR isnull(comparison_ready)
+     OR isnull(trace_duration_seconds) OR isnull(trace_cost_usd)
+     OR isnull(supervisor_output_tokens)
+| stats count AS incomplete_rows
+```
+
+逐个检查所有 Experiment，不能假设原来两个模型的控制总数仍然适用：
+
+```spl
+| inputlookup banking_cn_economics_candidate.csv
+| stats count AS rows
+        dc(trace_id) AS unique_traces
+        sum(comparison_ready) AS comparison_ready_rows
+        sum(ground_truth_adherence_pass) AS gt_passed
+        sum(ground_truth_adherence_scored) AS gt_scored
+        sum(trace_duration_seconds) AS total_duration_seconds
+        sum(trace_cost_usd) AS total_workflow_cost_usd
+        sum(supervisor_output_tokens) AS supervisor_output_tokens
+        by experiment_id experiment_name application_model dataset_version
+| eval key_status=if(rows=unique_traces,"OK","DUPLICATE"),
+       readiness_status=if(rows=comparison_ready_rows,"READY","INCOMPLETE"),
+       trace_coverage=if(rows=6,"6 TRACES","REVIEW TRACE COUNT")
+| table experiment_name application_model dataset_version rows unique_traces
+        comparison_ready_rows gt_passed gt_scored total_duration_seconds
+        total_workflow_cost_usd supervisor_output_tokens key_status
+        readiness_status trace_coverage
+```
+
+必须调查所有重复、数据不完整、单位异常、转换失败以及 Trace 数量变化。不能使用 `fillnull value=0` 让候选文件通过验证。保存预期聚合结果，以便部署后进行对比。
+
+### 4. 更新仓库中的两份 CSV
+
+候选文件通过验证后，先替换原始快照，再将完全相同的文件复制到可部署 App：
+
+```bash
+cp /path/to/export/banking_cn_economics.csv \
+   banking_cn_economics/banking_cn_economics.csv
+cp banking_cn_economics/banking_cn_economics.csv \
+   banking_model_economics/lookups/banking_cn_economics.csv
+cmp banking_cn_economics/banking_cn_economics.csv \
+    banking_model_economics/lookups/banking_cn_economics.csv
+```
+
+`cmp` 必须不产生任何输出。检查源代码管理 diff，并将源 CSV、打包 lookup 以及相关文档放在同一次提交中。
+
+对于受控发布，应提升 `banking_model_economics/local/app.conf` 中的版本号。兼容的快照刷新适合使用 patch 版本递增，例如从 `1.1.0` 调整为 `1.1.1`。如果 Dashboard SPL 或布局也发生变化，应按组织的发布策略选择版本号。
+
+### 5. 部署更新后的 lookup
+
+使用与最初安装 App 相同的部署方式。
+
+对于单机环境和仅数据更新，应先将文件暂存到目标目录，再通过重命名替换，避免面板搜索读取到尚未复制完整的 CSV。如果 Splunk 使用其他账户运行，请替换 `splunk:splunk`：
+
+```bash
+export SPLUNK_HOME=/opt/splunk
+sudo cp banking_model_economics/lookups/banking_cn_economics.csv \
+  "$SPLUNK_HOME/etc/apps/banking_model_economics/lookups/banking_cn_economics.csv.new"
+sudo chown splunk:splunk \
+  "$SPLUNK_HOME/etc/apps/banking_model_economics/lookups/banking_cn_economics.csv.new"
+sudo chmod 0644 \
+  "$SPLUNK_HOME/etc/apps/banking_model_economics/lookups/banking_cn_economics.csv.new"
+sudo mv \
+  "$SPLUNK_HOME/etc/apps/banking_model_economics/lookups/banking_cn_economics.csv.new" \
+  "$SPLUNK_HOME/etc/apps/banking_model_economics/lookups/banking_cn_economics.csv"
+```
+
+如果修改了 `app.conf` 版本，也要使用相同的所有权和权限进行部署。使用 Splunk Web 时，重新构建 `.spl` 归档包并作为升级安装。使用 Search Head Cluster 时，通过 deployer 或组织的配置管理流水线分发更新后的 App，不能逐个修改成员。
+
+### 6. 刷新 Splunk 和浏览器
+
+直接替换基于文件的 lookup 后，新启动的搜索通常可以直接读取新数据，无须重启 Splunk。重新加载或重新打开 Dashboard，使所有面板创建新的搜索作业。将 Model、Experiment 和 Scenario 重置为 `All`，因为之前选择的 token 值可能已经不在新快照中。
+
+出现以下任一情况时应重启 Splunk：
+
+- 安装或 App 升级流程要求重启。
+- 除 CSV 外还修改了配置文件，而当前实例没有重新加载这些文件。
+- 已确认部署文件和权限正确，但新搜索仍返回旧 lookup。
+- 环境变更策略要求 App 部署后重启。
+
+使用平时运行 Splunk 的同一操作系统账户：
+
+```bash
+sudo -u splunk "$SPLUNK_HOME/bin/splunk" restart --answer-yes --no-prompt
+sudo -u splunk "$SPLUNK_HOME/bin/splunk" status --no-prompt
+```
+
+如果搜索结果已经更新，但浏览器仍保留旧画面，请使用 `Ctrl+Shift+R`。
+
+### 7. 验证正式 lookup 和 Dashboard
+
+将候选验证搜索中的临时文件名改为 `banking_cn_economics.csv` 后重新运行。确认正式 lookup 产生之前保存的预期聚合结果。
+
+然后对 Dashboard 进行端到端验证：
+
+1. 新模型、Experiment 和场景出现在下拉框中。
+2. Executive accuracy、总耗时和工作流总成本与已验证的聚合结果一致。
+3. Trace 表和图表包含预期的 Trace 集合。
+4. 工作流成本仍不包含 `judge_cost_usd`。
+5. Supervisor aggregate 与 Supervisor direct 仍保持不同含义。
+6. 对新加入的 Trace 执行钻取，可以加载 Ground Truth、generated output、Judge rationale 和 tools。
+7. Data integrity 面板显示预期的 Dataset version、readiness 和 Trace coverage。
+8. 所有面板均不存在 lookup 权限、SPL 或数值转换错误。
+
+验收完成后，通过创建临时 lookup 时所使用的同一受管流程将其移除。在新快照通过运行观察前，应保留上一版本的发布制品。
+
+### 8. 回滚失败的更新
+
+恢复先前的仓库 revision 或已验收 App 包，重新部署其中的 `banking_cn_economics.csv`，然后再次执行正式 lookup 验证。仅数据回滚通常同样无须重启；如果同时回滚了配置，或目标环境策略要求，则应重启。不能根据 Dashboard 输出手工重建旧快照。
+
 ## Dashboard 使用说明
 
 ### 全局筛选器
@@ -508,16 +701,7 @@ tar -czf banking_model_economics-1.1.0.spl banking_model_economics
 
 ### 替换数据快照
 
-替换 `lookups/banking_cn_economics.csv` 前，应确认新文件保持相同的 schema 和语义，并重新运行行数、主键、完整性以及每个 Experiment 的验证搜索。不能用 `fillnull value=0` 隐藏缺失的核心指标。
-
-保持原始数据与打包 lookup 一致：
-
-```bash
-cp banking_cn_economics/banking_cn_economics.csv \
-   banking_model_economics/lookups/banking_cn_economics.csv
-```
-
-重新部署 App，并根据目标环境的变更策略重启或重新加载 Splunk。
+请使用[使用新 CSV 更新 Dashboard 数据](#使用新-csv-更新-dashboard-数据)中的完整流程，其中包括候选文件验证、仓库同步、部署、重启判断、更新后验收和回滚。绝不能只替换仓库中的一份 CSV，也不能用 `fillnull value=0` 隐藏缺失的核心指标。
 
 ### Dashboard 修改后没有显示
 

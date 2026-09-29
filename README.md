@@ -12,6 +12,7 @@ The implementation was built and validated on Splunk Enterprise 9.3.1 on Ubuntu.
 - [How the dashboard was built](#how-the-dashboard-was-built)
 - [Deploy to an existing Splunk Enterprise system](#deploy-to-an-existing-splunk-enterprise-system)
 - [Validate the deployment](#validate-the-deployment)
+- [Update dashboard data from a new CSV](#update-dashboard-data-from-a-new-csv)
 - [Dashboard user guide](#dashboard-user-guide)
 - [Metric definitions](#metric-definitions)
 - [Maintenance and troubleshooting](#maintenance-and-troubleshooting)
@@ -321,6 +322,198 @@ Confirm `12`, `2`, `2`, `12`, and `12` respectively. Then open the dashboard and
 8. The final Data integrity panel shows all six checks without scrolling.
 9. Dataset versions `1, 6` produce the comparability warning.
 
+## Update dashboard data from a new CSV
+
+The dashboard reads `banking_cn_economics.csv` through `inputlookup` each time a panel search runs. A new CSV with the same schema can therefore update the dashboard without redesigning the visualizations. Treat the operation as a controlled snapshot replacement: validate the candidate first, keep the repository source and packaged lookup identical, deploy the file, and then validate the canonical lookup again.
+
+### 1. Decide whether this is a compatible data update
+
+A data-only update is compatible when:
+
+- The filename remains `banking_cn_economics.csv`.
+- The header names and field meanings remain unchanged.
+- One physical CSV row still represents one root Trace.
+- `experiment_id + trace_id` remains unique.
+- Numeric fields still contain parseable numeric values.
+- Literal line breaks in long text remain encoded so that one Trace does not span multiple physical CSV records.
+
+Replacing a snapshot removes rows that are not present in the new file. If history must be retained, build the new CSV intentionally as a cumulative snapshot and ensure all old and new composite keys remain unique. The dashboard has no time picker and will aggregate every included Experiment unless a filter restricts it.
+
+The following changes are not data-only updates and require corresponding SPL, Dashboard, validation, and documentation changes:
+
+- Renaming or removing a field.
+- Changing units, such as seconds to milliseconds or USD to another currency.
+- Changing the meaning of Supervisor, cost, Judge, pass, or readiness fields.
+- Changing one-row-per-root-Trace granularity.
+
+Adding models, Experiments, Dataset versions, or scenarios is supported automatically by the dropdown searches. New chart series that do not have an explicit color mapping use the Splunk default palette. If Experiments no longer contain exactly six Traces, the integrity panel warns and the Trace-oriented layout should be reviewed for readability.
+
+### 2. Preserve the current version and stage the candidate
+
+Do not overwrite the accepted snapshot before validation. Keep the new export outside the two canonical repository paths, for example:
+
+```text
+/path/to/export/banking_cn_economics.csv
+```
+
+Record the current repository revision or create a normal source-control backup so the previous dataset and app version can be restored. Then compare basic file properties:
+
+```bash
+file /path/to/export/banking_cn_economics.csv
+head -n 1 /path/to/export/banking_cn_economics.csv > /tmp/new-banking-header.txt
+head -n 1 banking_cn_economics/banking_cn_economics.csv > /tmp/current-banking-header.txt
+cmp /tmp/current-banking-header.txt /tmp/new-banking-header.txt
+```
+
+The header comparison should produce no output. Confirm that the candidate is UTF-8 text and that its multiline text fields have not introduced unintended physical records. A simple line count is not a substitute for CSV parsing when quoted fields may contain real newlines.
+
+### 3. Validate the candidate in Splunk under a temporary name
+
+The safest production workflow is to expose the new file as a temporary lookup before replacing the canonical file. Copy or upload it to the same App as:
+
+```text
+banking_cn_economics_candidate.csv
+```
+
+Using an explicit `.csv` filename with `inputlookup` does not require a permanent lookup definition for this temporary test. Run the following searches in the **Banking Model Economics** App context.
+
+Check volume, dimensions, uniqueness, and readiness:
+
+```spl
+| inputlookup banking_cn_economics_candidate.csv
+| stats count AS rows
+        dc(experiment_id) AS experiments
+        dc(application_model) AS models
+        dc(dataset_version) AS dataset_versions
+        dc(trace_id) AS unique_trace_ids
+        dc(eval(experiment_id."::".trace_id)) AS unique_keys
+        sum(comparison_ready) AS comparison_ready_rows
+| eval key_status=if(rows=unique_keys,"OK","CHECK DUPLICATES")
+```
+
+Find duplicate composite keys; a valid result returns no rows:
+
+```spl
+| inputlookup banking_cn_economics_candidate.csv
+| stats count AS rows by experiment_id trace_id
+| where rows!=1
+```
+
+Check the core numeric and identity fields for missing values:
+
+```spl
+| inputlookup banking_cn_economics_candidate.csv
+| where isnull(experiment_id) OR isnull(trace_id)
+     OR isnull(application_model) OR isnull(dataset_version)
+     OR isnull(comparison_ready)
+     OR isnull(trace_duration_seconds) OR isnull(trace_cost_usd)
+     OR isnull(supervisor_output_tokens)
+| stats count AS incomplete_rows
+```
+
+Review every Experiment rather than assuming the original two-model controls still apply:
+
+```spl
+| inputlookup banking_cn_economics_candidate.csv
+| stats count AS rows
+        dc(trace_id) AS unique_traces
+        sum(comparison_ready) AS comparison_ready_rows
+        sum(ground_truth_adherence_pass) AS gt_passed
+        sum(ground_truth_adherence_scored) AS gt_scored
+        sum(trace_duration_seconds) AS total_duration_seconds
+        sum(trace_cost_usd) AS total_workflow_cost_usd
+        sum(supervisor_output_tokens) AS supervisor_output_tokens
+        by experiment_id experiment_name application_model dataset_version
+| eval key_status=if(rows=unique_traces,"OK","DUPLICATE"),
+       readiness_status=if(rows=comparison_ready_rows,"READY","INCOMPLETE"),
+       trace_coverage=if(rows=6,"6 TRACES","REVIEW TRACE COUNT")
+| table experiment_name application_model dataset_version rows unique_traces
+        comparison_ready_rows gt_passed gt_scored total_duration_seconds
+        total_workflow_cost_usd supervisor_output_tokens key_status
+        readiness_status trace_coverage
+```
+
+Investigate every duplicate, incomplete row, unexpected unit, failed conversion, and Trace-count change. Do not use `fillnull value=0` to make the candidate pass validation. Save the expected aggregate results for post-deployment comparison.
+
+### 4. Update both repository copies
+
+After the candidate passes validation, replace the original snapshot and then copy that exact file into the deployable App:
+
+```bash
+cp /path/to/export/banking_cn_economics.csv \
+   banking_cn_economics/banking_cn_economics.csv
+cp banking_cn_economics/banking_cn_economics.csv \
+   banking_model_economics/lookups/banking_cn_economics.csv
+cmp banking_cn_economics/banking_cn_economics.csv \
+    banking_model_economics/lookups/banking_cn_economics.csv
+```
+
+`cmp` must produce no output. Review the source-control diff and commit the source CSV, packaged lookup, and related documentation together.
+
+For a controlled release, increment the version in `banking_model_economics/local/app.conf`. A patch increment such as `1.1.0` to `1.1.1` is appropriate for a compatible snapshot refresh. If Dashboard SPL or layout also changes, choose a version that matches the organization's release policy.
+
+### 5. Deploy the updated lookup
+
+Choose the same deployment method used for the original App.
+
+For a standalone host and a data-only update, stage the file in the destination directory and rename it into place so a panel search does not read a partially copied CSV. Replace `splunk:splunk` when Splunk runs under another account:
+
+```bash
+export SPLUNK_HOME=/opt/splunk
+sudo cp banking_model_economics/lookups/banking_cn_economics.csv \
+  "$SPLUNK_HOME/etc/apps/banking_model_economics/lookups/banking_cn_economics.csv.new"
+sudo chown splunk:splunk \
+  "$SPLUNK_HOME/etc/apps/banking_model_economics/lookups/banking_cn_economics.csv.new"
+sudo chmod 0644 \
+  "$SPLUNK_HOME/etc/apps/banking_model_economics/lookups/banking_cn_economics.csv.new"
+sudo mv \
+  "$SPLUNK_HOME/etc/apps/banking_model_economics/lookups/banking_cn_economics.csv.new" \
+  "$SPLUNK_HOME/etc/apps/banking_model_economics/lookups/banking_cn_economics.csv"
+```
+
+If `app.conf` was versioned, deploy it with the same ownership and permissions. For Splunk Web, rebuild the `.spl` archive and install it as an upgrade. For a Search Head Cluster, distribute the updated App through the deployer or the organization's configuration-management pipeline; do not update members individually.
+
+### 6. Refresh Splunk and the browser
+
+A direct replacement of a file-based lookup normally becomes visible to newly dispatched searches without a Splunk restart. Reload the Dashboard or open it again so all panels create new search jobs. Reset Model, Experiment, and Scenario to `All`, because a previously selected token may not exist in the new snapshot.
+
+Restart Splunk when any of the following applies:
+
+- The installation or App-upgrade workflow requests it.
+- Configuration files other than the CSV were changed and the instance does not reload them.
+- New searches still return the old lookup after the deployed file and permissions have been verified.
+- The environment's change policy requires a restart after App deployment.
+
+Use the same operating-system account that normally runs Splunk:
+
+```bash
+sudo -u splunk "$SPLUNK_HOME/bin/splunk" restart --answer-yes --no-prompt
+sudo -u splunk "$SPLUNK_HOME/bin/splunk" status --no-prompt
+```
+
+If the searches are current but the browser retains an old rendering, use `Ctrl+Shift+R`.
+
+### 7. Validate the canonical lookup and Dashboard
+
+Repeat the candidate validation searches with `banking_cn_economics.csv`, not the temporary filename. Confirm that the canonical lookup produces the saved expected aggregates.
+
+Then verify the Dashboard end to end:
+
+1. New models, Experiments, and scenarios appear in the dropdowns.
+2. Executive accuracy, total duration, and total workflow cost match the validated aggregates.
+3. Trace tables and charts contain the expected Trace set.
+4. Workflow cost still excludes `judge_cost_usd`.
+5. Supervisor aggregate and Supervisor direct values retain their distinct meanings.
+6. Trace drilldown loads Ground Truth, generated output, Judge rationale, and tools from a newly added Trace.
+7. The Data integrity panel reports the expected Dataset versions, readiness, and Trace coverage.
+8. No panel reports lookup permission, SPL, or numeric conversion errors.
+
+After acceptance, remove the temporary candidate lookup through the same managed process used to create it. Keep the previous release artifact until the new snapshot has passed operational monitoring.
+
+### 8. Roll back an unsuccessful update
+
+Restore the prior repository revision or previously accepted App package, redeploy its `banking_cn_economics.csv`, and repeat the canonical lookup validation. A data-only rollback normally follows the same no-restart behavior; restart when configuration was also rolled back or the target environment requires it. Do not reconstruct the previous snapshot manually from dashboard output.
+
 ## Dashboard user guide
 
 ### Global filters
@@ -508,16 +701,7 @@ The warning about Dataset versions `1` and `6` is important: the dashboard accur
 
 ### Replace the snapshot
 
-Before replacing `lookups/banking_cn_economics.csv`, confirm that the new file keeps the same schema and semantics. Re-run the row, key, completeness, and per-Experiment validation searches. Do not use `fillnull value=0` to hide missing core metrics.
-
-Keep the original source and packaged lookup aligned:
-
-```bash
-cp banking_cn_economics/banking_cn_economics.csv \
-   banking_model_economics/lookups/banking_cn_economics.csv
-```
-
-Deploy the app again and restart or reload Splunk according to the target environment's change policy.
+Use the complete procedure in [Update dashboard data from a new CSV](#update-dashboard-data-from-a-new-csv). It covers candidate validation, repository synchronization, deployment, restart criteria, post-update acceptance, and rollback. Never replace only one of the two repository CSV copies, and do not use `fillnull value=0` to hide missing core metrics.
 
 ### Dashboard changes do not appear
 
