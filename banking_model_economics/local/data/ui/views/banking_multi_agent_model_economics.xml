@@ -1,0 +1,932 @@
+<dashboard version="2" theme="dark">
+  <label>Multi-Agent Banking ChatBot Model Economics</label>
+  <description>Trace-level quality, performance, workflow cost, token composition, and runtime complexity.</description>
+  <definition><![CDATA[
+{
+  "title": "Multi-Agent Banking ChatBot Model Economics",
+  "description": "Trace-level quality, performance, workflow cost, token composition, and runtime complexity. Snapshot data; no global time picker.",
+  "inputs": {
+    "input_model": {
+      "type": "input.dropdown",
+      "title": "Model",
+      "options": {
+        "defaultValue": "*",
+        "items": "> frame(label, value) | prepend(formattedStatics) | objects()",
+        "token": "tok_model"
+      },
+      "context": {
+        "formattedConfig": {
+          "string": {
+            "prefix": ""
+          }
+        },
+        "formattedStatics": "> statics | formatByType(formattedConfig)",
+        "statics": [
+          {
+            "label": "All",
+            "value": "*"
+          }
+        ],
+        "label": "> primary | seriesByName(\"label\") | formatByType(formattedConfig)",
+        "value": "> primary | seriesByName(\"value\") | formatByType(formattedConfig)"
+      },
+      "dataSources": {
+        "primary": "ds_models"
+      }
+    },
+    "input_experiment": {
+      "type": "input.dropdown",
+      "title": "Experiment",
+      "options": {
+        "defaultValue": "*",
+        "items": "> frame(label, value) | prepend(formattedStatics) | objects()",
+        "token": "tok_experiment"
+      },
+      "context": {
+        "formattedConfig": {
+          "string": {
+            "prefix": ""
+          }
+        },
+        "formattedStatics": "> statics | formatByType(formattedConfig)",
+        "statics": [
+          {
+            "label": "All",
+            "value": "*"
+          }
+        ],
+        "label": "> primary | seriesByName(\"label\") | formatByType(formattedConfig)",
+        "value": "> primary | seriesByName(\"value\") | formatByType(formattedConfig)"
+      },
+      "dataSources": {
+        "primary": "ds_experiments"
+      }
+    },
+    "input_scenario": {
+      "type": "input.dropdown",
+      "title": "Scenario",
+      "options": {
+        "defaultValue": "*",
+        "items": "> frame(label, value) | prepend(formattedStatics) | objects()",
+        "token": "tok_scenario"
+      },
+      "context": {
+        "formattedConfig": {
+          "string": {
+            "prefix": ""
+          }
+        },
+        "formattedStatics": "> statics | formatByType(formattedConfig)",
+        "statics": [
+          {
+            "label": "All",
+            "value": "*"
+          }
+        ],
+        "label": "> primary | seriesByName(\"label\") | formatByType(formattedConfig)",
+        "value": "> primary | seriesByName(\"value\") | formatByType(formattedConfig)"
+      },
+      "dataSources": {
+        "primary": "ds_scenarios"
+      }
+    }
+  },
+  "defaults": {
+    "dataSources": {
+      "ds.search": {
+        "options": {
+          "queryParameters": {
+            "earliest": "0",
+            "latest": ""
+          }
+        }
+      }
+    },
+    "visualizations": {
+      "global": {
+        "showProgressBar": true,
+        "showLastUpdated": false
+      }
+    }
+  },
+  "visualizations": {
+    "viz_integrity": {
+      "type": "splunk.table",
+      "title": "Data integrity & comparability",
+      "dataSources": {
+        "primary": "ds_integrity"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "All six filter-aware checks are shown together. Differing Dataset versions mean quality is not a strict single-variable model comparison.",
+      "context": {
+        "statusColors": [
+          {
+            "match": "WARNING*",
+            "value": "#7C4A03"
+          },
+          {
+            "match": "READY*",
+            "value": "#14532D"
+          },
+          {
+            "match": "No data*",
+            "value": "#334155"
+          }
+        ]
+      },
+      "options": {
+        "backgroundColor": "#111827",
+        "count": 10,
+        "headerVisibility": "fixed",
+        "showInternalFields": false,
+        "tableFormat": {
+          "rowBackgroundColors": "> table | seriesByName(\"Status\") | matchValue(statusColors)"
+        },
+        "columnFormat": {
+          "Check": {
+            "width": 300
+          },
+          "Value": {
+            "width": 220
+          },
+          "Status": {
+            "width": 820
+          }
+        }
+      }
+    },
+    "viz_kpi": {
+      "type": "splunk.column",
+      "title": "Executive · Ground Truth accuracy",
+      "dataSources": {
+        "primary": "ds_kpi"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "Pass percentage uses only scored traces; unscored traces are not treated as failures.",
+      "options": {
+        "backgroundColor": "#111827",
+        "legendDisplay": "top",
+        "legendTruncation": "ellipsisMiddle",
+        "xAxisTitleVisibility": "hide",
+        "yAxisTitleText": "Accuracy (%)",
+        "yAxisMin": 0,
+        "yAxisMax": 100,
+        "yAxisAbbreviation": "off",
+        "dataValuesDisplay": "all",
+        "seriesColorsByField": {
+          "qwen3.7-flash · v1 · f486e751": "#14B8A6",
+          "qwen3.8-max · v6 · 81ae122d": "#8B5CF6"
+        },
+        "numberPrecision": 2
+      }
+    },
+    "viz_quality": {
+      "type": "splunk.table",
+      "title": "Ground Truth adherence by Trace",
+      "dataSources": {
+        "primary": "ds_quality_matrix"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "Pass/Fail/Not scored is derived without treating unscored traces as failures.",
+      "context": {
+        "resultColors": [
+          {
+            "match": "Pass",
+            "value": "#14532D"
+          },
+          {
+            "match": "Fail",
+            "value": "#7F1D1D"
+          },
+          {
+            "match": "Not scored",
+            "value": "#78350F"
+          }
+        ]
+      },
+      "options": {
+        "backgroundColor": "#111827",
+        "count": 20,
+        "headerVisibility": "fixed",
+        "showInternalFields": false,
+        "tableFormat": {
+          "rowBackgroundColors": "> table | seriesByName(\"Result\") | matchValue(resultColors)"
+        },
+        "columnFormat": {
+          "Trace": {
+            "width": 55
+          },
+          "Scenario": {
+            "width": 490
+          },
+          "Experiment": {
+            "width": 290
+          },
+          "Result": {
+            "width": 90
+          },
+          "Score": {
+            "width": 80
+          },
+          "Judge status": {
+            "width": 110
+          }
+        }
+      }
+    },
+    "viz_supervisor_trace": {
+      "type": "splunk.column",
+      "title": "Supervisor aggregate output tokens by Trace",
+      "dataSources": {
+        "primary": "ds_supervisor_trace"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "Top-level Supervisor span aggregate; includes downstream Agent output and must not be read as Supervisor-only.",
+      "options": {
+        "backgroundColor": "#111827",
+        "legendDisplay": "top",
+        "legendTruncation": "ellipsisMiddle",
+        "xAxisTitleVisibility": "hide",
+        "yAxisTitleText": "Output tokens",
+        "yAxisAbbreviation": "off",
+        "dataValuesDisplay": "all",
+        "seriesColorsByField": {
+          "qwen3.7-flash · v1 · f486e751": "#14B8A6",
+          "qwen3.8-max · v6 · 81ae122d": "#8B5CF6"
+        },
+        "stackMode": "default",
+        "numberPrecision": 2
+      }
+    },
+    "viz_supervisor_total": {
+      "type": "splunk.bar",
+      "title": "Supervisor aggregate output tokens · total",
+      "dataSources": {
+        "primary": "ds_supervisor_total"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "Expected full-snapshot controls: 16,878 and 4,917.",
+      "options": {
+        "backgroundColor": "#111827",
+        "legendDisplay": "off",
+        "legendTruncation": "ellipsisMiddle",
+        "xAxisTitleVisibility": "hide",
+        "yAxisTitleText": "Output tokens",
+        "yAxisAbbreviation": "off",
+        "dataValuesDisplay": "all",
+        "seriesColorsByField": {
+          "qwen3.7-flash · v1 · f486e751": "#14B8A6",
+          "qwen3.8-max · v6 · 81ae122d": "#8B5CF6"
+        },
+        "shouldUseThousandSeparators": true,
+        "numberPrecision": 2
+      }
+    },
+    "viz_duration_trace": {
+      "type": "splunk.column",
+      "title": "Trace duration",
+      "dataSources": {
+        "primary": "ds_duration_trace"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "Root Trace duration in seconds; tooltips retain the underlying precision.",
+      "options": {
+        "backgroundColor": "#111827",
+        "legendDisplay": "top",
+        "legendTruncation": "ellipsisMiddle",
+        "xAxisTitleVisibility": "hide",
+        "yAxisTitleText": "Seconds",
+        "yAxisAbbreviation": "off",
+        "dataValuesDisplay": "all",
+        "seriesColorsByField": {
+          "qwen3.7-flash · v1 · f486e751": "#14B8A6",
+          "qwen3.8-max · v6 · 81ae122d": "#8B5CF6"
+        },
+        "numberPrecision": 2
+      }
+    },
+    "viz_duration_total": {
+      "type": "splunk.column",
+      "title": "Executive · Total duration",
+      "dataSources": {
+        "primary": "ds_duration_total"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "Sum of root Trace duration for each model, bounded by Experiment.",
+      "options": {
+        "backgroundColor": "#111827",
+        "legendDisplay": "top",
+        "legendTruncation": "ellipsisMiddle",
+        "xAxisTitleVisibility": "hide",
+        "yAxisTitleText": "Total seconds",
+        "yAxisAbbreviation": "off",
+        "dataValuesDisplay": "all",
+        "seriesColorsByField": {
+          "qwen3.7-flash · v1 · f486e751": "#14B8A6",
+          "qwen3.8-max · v6 · 81ae122d": "#8B5CF6"
+        },
+        "numberPrecision": 2
+      }
+    },
+    "viz_cost_trace": {
+      "type": "splunk.column",
+      "title": "Application workflow cost by Trace",
+      "dataSources": {
+        "primary": "ds_cost_trace"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "Linear USD scale keeps the highest Trace cost visually prominent; labels retain nine decimal places. Judge cost is excluded.",
+      "options": {
+        "backgroundColor": "#111827",
+        "legendDisplay": "top",
+        "legendTruncation": "ellipsisMiddle",
+        "xAxisTitleVisibility": "hide",
+        "yAxisTitleText": "USD",
+        "yAxisAbbreviation": "off",
+        "dataValuesDisplay": "all",
+        "seriesColorsByField": {
+          "qwen3.7-flash · v1 · f486e751": "#14B8A6",
+          "qwen3.8-max · v6 · 81ae122d": "#8B5CF6"
+        },
+        "numberPrecision": 6,
+        "yAxisScale": "linear"
+      }
+    },
+    "viz_cost_total": {
+      "type": "splunk.column",
+      "title": "Executive · Total workflow cost",
+      "dataSources": {
+        "primary": "ds_cost_total"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "Application workflow cost only, in USD. Independent Judge cost is excluded.",
+      "options": {
+        "backgroundColor": "#111827",
+        "legendDisplay": "top",
+        "legendTruncation": "ellipsisMiddle",
+        "xAxisTitleVisibility": "hide",
+        "yAxisTitleText": "Total USD",
+        "yAxisAbbreviation": "off",
+        "dataValuesDisplay": "all",
+        "seriesColorsByField": {
+          "qwen3.7-flash · v1 · f486e751": "#14B8A6",
+          "qwen3.8-max · v6 · 81ae122d": "#8B5CF6"
+        },
+        "numberPrecision": 6,
+        "yAxisScale": "linear"
+      }
+    },
+    "viz_token_composition": {
+      "type": "splunk.column",
+      "title": "Supervisor direct vs downstream output tokens",
+      "dataSources": {
+        "primary": "ds_token_composition"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "Composition of root Trace output. Do not add this chart to the aggregate Supervisor metric.",
+      "options": {
+        "backgroundColor": "#111827",
+        "legendDisplay": "top",
+        "legendTruncation": "ellipsisMiddle",
+        "xAxisTitleVisibility": "hide",
+        "yAxisTitleText": "Output tokens",
+        "yAxisAbbreviation": "off",
+        "dataValuesDisplay": "all",
+        "seriesColorsByField": {
+          "Supervisor direct": "#2DD4BF",
+          "Downstream agents": "#A78BFA"
+        },
+        "stackMode": "stacked",
+        "numberPrecision": 2
+      }
+    },
+    "viz_efficiency": {
+      "type": "splunk.table",
+      "title": "Efficiency",
+      "dataSources": {
+        "primary": "ds_efficiency"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "Rates are recomputed from Experiment totals, not averaged from row-level rates.",
+      "options": {
+        "backgroundColor": "#111827",
+        "count": 5,
+        "headerVisibility": "fixed",
+        "showInternalFields": false,
+        "columnFormat": {
+          "Experiment": {
+            "width": 300
+          },
+          "Output tokens / second": {
+            "width": 190
+          },
+          "Cost / 1K total tokens": {
+            "width": 220
+          }
+        }
+      }
+    },
+    "viz_complexity": {
+      "type": "splunk.table",
+      "title": "Runtime complexity & errors",
+      "dataSources": {
+        "primary": "ds_complexity"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "Zero errors are neutral; only nonzero errors or LLM timeouts produce a warning.",
+      "context": {
+        "healthColors": [
+          {
+            "match": "WARNING",
+            "value": "#7F1D1D"
+          },
+          {
+            "match": "OK",
+            "value": "#172033"
+          }
+        ]
+      },
+      "options": {
+        "backgroundColor": "#111827",
+        "count": 5,
+        "headerVisibility": "fixed",
+        "showInternalFields": false,
+        "tableFormat": {
+          "rowBackgroundColors": "> table | seriesByName(\"Health\") | matchValue(healthColors)"
+        }
+      }
+    },
+    "viz_trace_table": {
+      "type": "splunk.table",
+      "title": "Trace detail · click a row to inspect evidence",
+      "dataSources": {
+        "primary": "ds_trace_table"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "The selected trace opens Ground Truth, generated output, Judge rationale, and tool usage below.",
+      "options": {
+        "backgroundColor": "#111827",
+        "count": 20,
+        "headerVisibility": "fixed",
+        "showInternalFields": false,
+        "columnFormat": {
+          "Seq": {
+            "width": 50
+          },
+          "Scenario": {
+            "width": 350
+          },
+          "Model": {
+            "width": 130
+          },
+          "Dataset v": {
+            "width": 75
+          },
+          "GT result": {
+            "width": 90
+          },
+          "GT score": {
+            "width": 80
+          },
+          "Supervisor aggregate": {
+            "width": 130
+          },
+          "Supervisor direct": {
+            "width": 120
+          },
+          "Duration (s)": {
+            "width": 105
+          },
+          "Cost (USD)": {
+            "width": 140
+          },
+          "trace_id": {
+            "width": 260
+          }
+        }
+      },
+      "eventHandlers": [
+        {
+          "type": "drilldown.setToken",
+          "options": {
+            "tokens": [
+              {
+                "token": "tok_trace",
+                "key": "row.trace_id.value"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "viz_detail_hint": {
+      "type": "splunk.markdown",
+      "options": {
+        "backgroundColor": "#172033",
+        "markdown": "### Selected Trace evidence\nSelect a row in **Trace detail** to load the source answer, model response, Judge rationale, and tools. Literal `\\\\n` sequences are converted to readable line breaks only in this display.",
+        "fontSize": "small"
+      }
+    },
+    "viz_trace_detail": {
+      "type": "splunk.table",
+      "title": "Selected Trace evidence",
+      "dataSources": {
+        "primary": "ds_trace_detail"
+      },
+      "showProgressBar": true,
+      "showLastUpdated": false,
+      "description": "Display-only newline normalization; the lookup remains unchanged.",
+      "options": {
+        "backgroundColor": "#111827",
+        "count": 10,
+        "headerVisibility": "fixed",
+        "showInternalFields": false,
+        "columnFormat": {
+          "Section": {
+            "width": 160
+          },
+          "Content": {
+            "width": 1180
+          }
+        }
+      }
+    }
+  },
+  "dataSources": {
+    "ds_models": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| stats count by application_model\n| rename application_model AS label\n| eval value=label\n| fields label value\n| sort 0 label",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Model dropdown"
+    },
+    "ds_experiments": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| stats count by experiment_name\n| rename experiment_name AS label\n| eval value=label\n| fields label value\n| sort 0 label",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Experiment dropdown"
+    },
+    "ds_scenarios": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| stats values(scenario_input) AS question by scenario_key\n| eval label=substr(mvindex(question,0),1,72), value=scenario_key\n| fields label value\n| sort 0 label",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Scenario dropdown"
+    },
+    "ds_integrity": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval comparison_ready=tonumber(comparison_ready)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| eventstats count AS experiment_trace_count by experiment_id\n| stats dc(experiment_id) AS experiments\n        count AS traces\n        sum(comparison_ready) AS ready\n        dc(application_model) AS models\n        dc(dataset_version) AS dataset_version_count\n        values(dataset_version) AS dataset_versions\n        min(experiment_trace_count) AS min_traces_per_experiment\n        max(experiment_trace_count) AS max_traces_per_experiment\n| eval dataset_versions=if(dataset_version_count=0,\"No data\",mvjoin(dataset_versions,\", \")),\n       integrity_rows=mvappend(\n         \"1|||Dataset version alignment|||\".dataset_versions.\"|||\".case(traces=0,\"WARNING · No data for current filters\",dataset_version_count=1,\"READY · Dataset versions aligned\",1=1,\"WARNING · Dataset versions differ; quality is not a strict single-variable model comparison\"),\n         \"2|||Experiments|||\".printf(\"%.2f\",experiments).\"|||\".if(experiments>0,\"READY · Experiment boundary is available\",\"WARNING · No Experiment found\"),\n         \"3|||Models|||\".printf(\"%.2f\",models).\"|||\".if(models>0,\"READY · Model field is populated\",\"WARNING · No model found\"),\n         \"4|||Traces|||\".printf(\"%.2f\",traces).\"|||\".if(traces>0,\"READY · Trace rows loaded\",\"WARNING · No Trace found\"),\n         \"5|||Comparison ready|||\".printf(\"%.2f / %.2f\",ready,traces).\"|||\".if(traces>0 AND ready=traces,\"READY · All filtered traces contain core metrics\",\"WARNING · One or more traces are incomplete\"),\n         \"6|||Six-trace coverage|||\".if(traces=0,\"No data\",printf(\"%.2f–%.2f per Experiment\",min_traces_per_experiment,max_traces_per_experiment)).\"|||\".if(min_traces_per_experiment=6 AND max_traces_per_experiment=6,\"READY · Every filtered Experiment has 6 traces\",\"WARNING · Filtered Experiment trace counts are not all 6\")\n       )\n| mvexpand integrity_rows\n| rex field=integrity_rows \"^(?<Order>\\d+)\\|\\|\\|(?<Check>[^|]+)\\|\\|\\|(?<Value>[^|]+)\\|\\|\\|(?<Status>.*)$\"\n| eval Order=tonumber(Order)\n| sort 0 Order\n| table Check Value Status",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Integrity and comparability"
+    },
+    "ds_kpi": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval ground_truth_adherence_pass=tonumber(ground_truth_adherence_pass),\n       ground_truth_adherence_scored=tonumber(ground_truth_adherence_scored),\n       comparison_ready=tonumber(comparison_ready),\n       trace_duration_seconds=tonumber(trace_duration_seconds),\n       trace_cost_usd=tonumber(trace_cost_usd),\n       judge_cost_usd=tonumber(judge_cost_usd),\n       supervisor_output_tokens=tonumber(supervisor_output_tokens),\n       supervisor_direct_output_tokens=tonumber(supervisor_direct_output_tokens),\n       non_supervisor_output_tokens=tonumber(non_supervisor_output_tokens),\n       trace_input_tokens=tonumber(trace_input_tokens),\n       trace_output_tokens=tonumber(trace_output_tokens),\n       trace_total_tokens=tonumber(trace_total_tokens),\n       span_count=tonumber(span_count),\n       llm_call_count=tonumber(llm_call_count),\n       tool_call_count=tonumber(tool_call_count),\n       retriever_call_count=tonumber(retriever_call_count),\n       error_span_count=tonumber(error_span_count),\n       timeout_llm_call_count=tonumber(timeout_llm_call_count)\n| eval experiment_short=substr(experiment_id,1,8),\n       series_label=application_model.\" · v\".dataset_version.\" · \".experiment_short,\n       trace_label=\"T\".printf(\"%02d\",trace_sequence)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| stats sum(ground_truth_adherence_pass) AS passed\n        sum(ground_truth_adherence_scored) AS scored\n        by experiment_id series_label\n| eval accuracy_pct=if(scored>0,round(100*passed/scored,2),null()), metric=\"Ground Truth\"\n| chart max(accuracy_pct) over metric by series_label\n| rename metric AS Metric",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Executive Ground Truth accuracy"
+    },
+    "ds_quality_matrix": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval ground_truth_adherence_pass=tonumber(ground_truth_adherence_pass),\n       ground_truth_adherence_scored=tonumber(ground_truth_adherence_scored),\n       comparison_ready=tonumber(comparison_ready),\n       trace_duration_seconds=tonumber(trace_duration_seconds),\n       trace_cost_usd=tonumber(trace_cost_usd),\n       judge_cost_usd=tonumber(judge_cost_usd),\n       supervisor_output_tokens=tonumber(supervisor_output_tokens),\n       supervisor_direct_output_tokens=tonumber(supervisor_direct_output_tokens),\n       non_supervisor_output_tokens=tonumber(non_supervisor_output_tokens),\n       trace_input_tokens=tonumber(trace_input_tokens),\n       trace_output_tokens=tonumber(trace_output_tokens),\n       trace_total_tokens=tonumber(trace_total_tokens),\n       span_count=tonumber(span_count),\n       llm_call_count=tonumber(llm_call_count),\n       tool_call_count=tonumber(tool_call_count),\n       retriever_call_count=tonumber(retriever_call_count),\n       error_span_count=tonumber(error_span_count),\n       timeout_llm_call_count=tonumber(timeout_llm_call_count)\n| eval experiment_short=substr(experiment_id,1,8),\n       series_label=application_model.\" · v\".dataset_version.\" · \".experiment_short,\n       trace_label=\"T\".printf(\"%02d\",trace_sequence)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| eval Result=case(ground_truth_adherence_scored!=1,\"Not scored\",\n                   ground_truth_adherence_pass=1,\"Pass\",\n                   ground_truth_adherence_pass=0,\"Fail\",\n                   1=1,\"Not scored\")\n| eval Score=if(ground_truth_adherence_scored=1,printf(\"%.2f\",ground_truth_adherence_score),\"—\")\n| rename trace_label AS Trace, scenario_input AS Scenario,\n         series_label AS Experiment, ground_truth_adherence_status AS \"Judge status\"\n| table Trace Scenario Experiment Result Score \"Judge status\"\n| sort 0 Trace Experiment",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Ground Truth pass matrix"
+    },
+    "ds_supervisor_trace": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval ground_truth_adherence_pass=tonumber(ground_truth_adherence_pass),\n       ground_truth_adherence_scored=tonumber(ground_truth_adherence_scored),\n       comparison_ready=tonumber(comparison_ready),\n       trace_duration_seconds=tonumber(trace_duration_seconds),\n       trace_cost_usd=tonumber(trace_cost_usd),\n       judge_cost_usd=tonumber(judge_cost_usd),\n       supervisor_output_tokens=tonumber(supervisor_output_tokens),\n       supervisor_direct_output_tokens=tonumber(supervisor_direct_output_tokens),\n       non_supervisor_output_tokens=tonumber(non_supervisor_output_tokens),\n       trace_input_tokens=tonumber(trace_input_tokens),\n       trace_output_tokens=tonumber(trace_output_tokens),\n       trace_total_tokens=tonumber(trace_total_tokens),\n       span_count=tonumber(span_count),\n       llm_call_count=tonumber(llm_call_count),\n       tool_call_count=tonumber(tool_call_count),\n       retriever_call_count=tonumber(retriever_call_count),\n       error_span_count=tonumber(error_span_count),\n       timeout_llm_call_count=tonumber(timeout_llm_call_count)\n| eval experiment_short=substr(experiment_id,1,8),\n       series_label=application_model.\" · v\".dataset_version.\" · \".experiment_short,\n       trace_label=\"T\".printf(\"%02d\",trace_sequence)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| eval supervisor_output_tokens=round(supervisor_output_tokens,2)\n| chart max(supervisor_output_tokens) AS output_tokens over trace_label by series_label",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Supervisor aggregate output tokens by Trace"
+    },
+    "ds_supervisor_total": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval ground_truth_adherence_pass=tonumber(ground_truth_adherence_pass),\n       ground_truth_adherence_scored=tonumber(ground_truth_adherence_scored),\n       comparison_ready=tonumber(comparison_ready),\n       trace_duration_seconds=tonumber(trace_duration_seconds),\n       trace_cost_usd=tonumber(trace_cost_usd),\n       judge_cost_usd=tonumber(judge_cost_usd),\n       supervisor_output_tokens=tonumber(supervisor_output_tokens),\n       supervisor_direct_output_tokens=tonumber(supervisor_direct_output_tokens),\n       non_supervisor_output_tokens=tonumber(non_supervisor_output_tokens),\n       trace_input_tokens=tonumber(trace_input_tokens),\n       trace_output_tokens=tonumber(trace_output_tokens),\n       trace_total_tokens=tonumber(trace_total_tokens),\n       span_count=tonumber(span_count),\n       llm_call_count=tonumber(llm_call_count),\n       tool_call_count=tonumber(tool_call_count),\n       retriever_call_count=tonumber(retriever_call_count),\n       error_span_count=tonumber(error_span_count),\n       timeout_llm_call_count=tonumber(timeout_llm_call_count)\n| eval experiment_short=substr(experiment_id,1,8),\n       series_label=application_model.\" · v\".dataset_version.\" · \".experiment_short,\n       trace_label=\"T\".printf(\"%02d\",trace_sequence)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| stats sum(supervisor_output_tokens) AS supervisor_output_tokens\n        count AS traces\n        by experiment_id series_label\n| eval supervisor_output_tokens=round(supervisor_output_tokens,2),\n       \"Trace coverage\"=if(traces=6,\"6.00/6.00\",\"WARNING: \".printf(\"%.2f\",traces).\" traces\")\n| rename series_label AS Experiment, supervisor_output_tokens AS \"Aggregate output tokens\"\n| table Experiment \"Aggregate output tokens\" \"Trace coverage\"",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Supervisor output token totals"
+    },
+    "ds_duration_trace": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval ground_truth_adherence_pass=tonumber(ground_truth_adherence_pass),\n       ground_truth_adherence_scored=tonumber(ground_truth_adherence_scored),\n       comparison_ready=tonumber(comparison_ready),\n       trace_duration_seconds=tonumber(trace_duration_seconds),\n       trace_cost_usd=tonumber(trace_cost_usd),\n       judge_cost_usd=tonumber(judge_cost_usd),\n       supervisor_output_tokens=tonumber(supervisor_output_tokens),\n       supervisor_direct_output_tokens=tonumber(supervisor_direct_output_tokens),\n       non_supervisor_output_tokens=tonumber(non_supervisor_output_tokens),\n       trace_input_tokens=tonumber(trace_input_tokens),\n       trace_output_tokens=tonumber(trace_output_tokens),\n       trace_total_tokens=tonumber(trace_total_tokens),\n       span_count=tonumber(span_count),\n       llm_call_count=tonumber(llm_call_count),\n       tool_call_count=tonumber(tool_call_count),\n       retriever_call_count=tonumber(retriever_call_count),\n       error_span_count=tonumber(error_span_count),\n       timeout_llm_call_count=tonumber(timeout_llm_call_count)\n| eval experiment_short=substr(experiment_id,1,8),\n       series_label=application_model.\" · v\".dataset_version.\" · \".experiment_short,\n       trace_label=\"T\".printf(\"%02d\",trace_sequence)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| eval trace_duration_seconds=round(trace_duration_seconds,2)\n| chart max(trace_duration_seconds) AS duration_seconds over trace_label by series_label",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Trace duration"
+    },
+    "ds_duration_total": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval ground_truth_adherence_pass=tonumber(ground_truth_adherence_pass),\n       ground_truth_adherence_scored=tonumber(ground_truth_adherence_scored),\n       comparison_ready=tonumber(comparison_ready),\n       trace_duration_seconds=tonumber(trace_duration_seconds),\n       trace_cost_usd=tonumber(trace_cost_usd),\n       judge_cost_usd=tonumber(judge_cost_usd),\n       supervisor_output_tokens=tonumber(supervisor_output_tokens),\n       supervisor_direct_output_tokens=tonumber(supervisor_direct_output_tokens),\n       non_supervisor_output_tokens=tonumber(non_supervisor_output_tokens),\n       trace_input_tokens=tonumber(trace_input_tokens),\n       trace_output_tokens=tonumber(trace_output_tokens),\n       trace_total_tokens=tonumber(trace_total_tokens),\n       span_count=tonumber(span_count),\n       llm_call_count=tonumber(llm_call_count),\n       tool_call_count=tonumber(tool_call_count),\n       retriever_call_count=tonumber(retriever_call_count),\n       error_span_count=tonumber(error_span_count),\n       timeout_llm_call_count=tonumber(timeout_llm_call_count)\n| eval experiment_short=substr(experiment_id,1,8),\n       series_label=application_model.\" · v\".dataset_version.\" · \".experiment_short,\n       trace_label=\"T\".printf(\"%02d\",trace_sequence)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| stats sum(trace_duration_seconds) AS total_duration_seconds\n        by experiment_id series_label\n| eval total_duration_seconds=round(total_duration_seconds,2), metric=\"Total duration\"\n| chart max(total_duration_seconds) over metric by series_label\n| rename metric AS Metric",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Executive total duration"
+    },
+    "ds_cost_trace": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval ground_truth_adherence_pass=tonumber(ground_truth_adherence_pass),\n       ground_truth_adherence_scored=tonumber(ground_truth_adherence_scored),\n       comparison_ready=tonumber(comparison_ready),\n       trace_duration_seconds=tonumber(trace_duration_seconds),\n       trace_cost_usd=tonumber(trace_cost_usd),\n       judge_cost_usd=tonumber(judge_cost_usd),\n       supervisor_output_tokens=tonumber(supervisor_output_tokens),\n       supervisor_direct_output_tokens=tonumber(supervisor_direct_output_tokens),\n       non_supervisor_output_tokens=tonumber(non_supervisor_output_tokens),\n       trace_input_tokens=tonumber(trace_input_tokens),\n       trace_output_tokens=tonumber(trace_output_tokens),\n       trace_total_tokens=tonumber(trace_total_tokens),\n       span_count=tonumber(span_count),\n       llm_call_count=tonumber(llm_call_count),\n       tool_call_count=tonumber(tool_call_count),\n       retriever_call_count=tonumber(retriever_call_count),\n       error_span_count=tonumber(error_span_count),\n       timeout_llm_call_count=tonumber(timeout_llm_call_count)\n| eval experiment_short=substr(experiment_id,1,8),\n       series_label=application_model.\" · v\".dataset_version.\" · \".experiment_short,\n       trace_label=\"T\".printf(\"%02d\",trace_sequence)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| eval trace_cost_usd=case(isnull(trace_cost_usd),null(),trace_cost_usd=0,0,abs(trace_cost_usd)>=0.1,round(trace_cost_usd,2),abs(trace_cost_usd)>=0.01,round(trace_cost_usd,3),abs(trace_cost_usd)>=0.001,round(trace_cost_usd,4),abs(trace_cost_usd)>=0.0001,round(trace_cost_usd,5),abs(trace_cost_usd)>=0.00001,round(trace_cost_usd,6),abs(trace_cost_usd)>=0.000001,round(trace_cost_usd,7),abs(trace_cost_usd)>=0.0000001,round(trace_cost_usd,8),abs(trace_cost_usd)>=0.00000001,round(trace_cost_usd,9),abs(trace_cost_usd)>=0.000000001,round(trace_cost_usd,10),1=1,round(trace_cost_usd,12))\n| chart max(trace_cost_usd) AS cost_usd over trace_label by series_label",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Workflow cost by Trace"
+    },
+    "ds_cost_total": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval ground_truth_adherence_pass=tonumber(ground_truth_adherence_pass),\n       ground_truth_adherence_scored=tonumber(ground_truth_adherence_scored),\n       comparison_ready=tonumber(comparison_ready),\n       trace_duration_seconds=tonumber(trace_duration_seconds),\n       trace_cost_usd=tonumber(trace_cost_usd),\n       judge_cost_usd=tonumber(judge_cost_usd),\n       supervisor_output_tokens=tonumber(supervisor_output_tokens),\n       supervisor_direct_output_tokens=tonumber(supervisor_direct_output_tokens),\n       non_supervisor_output_tokens=tonumber(non_supervisor_output_tokens),\n       trace_input_tokens=tonumber(trace_input_tokens),\n       trace_output_tokens=tonumber(trace_output_tokens),\n       trace_total_tokens=tonumber(trace_total_tokens),\n       span_count=tonumber(span_count),\n       llm_call_count=tonumber(llm_call_count),\n       tool_call_count=tonumber(tool_call_count),\n       retriever_call_count=tonumber(retriever_call_count),\n       error_span_count=tonumber(error_span_count),\n       timeout_llm_call_count=tonumber(timeout_llm_call_count)\n| eval experiment_short=substr(experiment_id,1,8),\n       series_label=application_model.\" · v\".dataset_version.\" · \".experiment_short,\n       trace_label=\"T\".printf(\"%02d\",trace_sequence)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| stats sum(trace_cost_usd) AS total_cost_usd\n        by experiment_id series_label\n| eval total_cost_usd=case(isnull(total_cost_usd),null(),total_cost_usd=0,0,abs(total_cost_usd)>=0.1,round(total_cost_usd,2),abs(total_cost_usd)>=0.01,round(total_cost_usd,3),abs(total_cost_usd)>=0.001,round(total_cost_usd,4),abs(total_cost_usd)>=0.0001,round(total_cost_usd,5),abs(total_cost_usd)>=0.00001,round(total_cost_usd,6),abs(total_cost_usd)>=0.000001,round(total_cost_usd,7),abs(total_cost_usd)>=0.0000001,round(total_cost_usd,8),abs(total_cost_usd)>=0.00000001,round(total_cost_usd,9),abs(total_cost_usd)>=0.000000001,round(total_cost_usd,10),1=1,round(total_cost_usd,12)),\n       metric=\"Workflow cost\"\n| chart max(total_cost_usd) over metric by series_label\n| rename metric AS Metric",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Executive total workflow cost"
+    },
+    "ds_token_composition": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval ground_truth_adherence_pass=tonumber(ground_truth_adherence_pass),\n       ground_truth_adherence_scored=tonumber(ground_truth_adherence_scored),\n       comparison_ready=tonumber(comparison_ready),\n       trace_duration_seconds=tonumber(trace_duration_seconds),\n       trace_cost_usd=tonumber(trace_cost_usd),\n       judge_cost_usd=tonumber(judge_cost_usd),\n       supervisor_output_tokens=tonumber(supervisor_output_tokens),\n       supervisor_direct_output_tokens=tonumber(supervisor_direct_output_tokens),\n       non_supervisor_output_tokens=tonumber(non_supervisor_output_tokens),\n       trace_input_tokens=tonumber(trace_input_tokens),\n       trace_output_tokens=tonumber(trace_output_tokens),\n       trace_total_tokens=tonumber(trace_total_tokens),\n       span_count=tonumber(span_count),\n       llm_call_count=tonumber(llm_call_count),\n       tool_call_count=tonumber(tool_call_count),\n       retriever_call_count=tonumber(retriever_call_count),\n       error_span_count=tonumber(error_span_count),\n       timeout_llm_call_count=tonumber(timeout_llm_call_count)\n| eval experiment_short=substr(experiment_id,1,8),\n       series_label=application_model.\" · v\".dataset_version.\" · \".experiment_short,\n       trace_label=\"T\".printf(\"%02d\",trace_sequence)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| stats sum(supervisor_direct_output_tokens) AS supervisor_direct\n        sum(non_supervisor_output_tokens) AS downstream_agents\n        by experiment_id series_label\n| eval supervisor_direct=round(supervisor_direct,2),\n       downstream_agents=round(downstream_agents,2)\n| rename series_label AS Experiment,\n         supervisor_direct AS \"Supervisor direct\",\n         downstream_agents AS \"Downstream agents\"\n| table Experiment \"Supervisor direct\" \"Downstream agents\"",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Output token composition"
+    },
+    "ds_complexity": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval ground_truth_adherence_pass=tonumber(ground_truth_adherence_pass),\n       ground_truth_adherence_scored=tonumber(ground_truth_adherence_scored),\n       comparison_ready=tonumber(comparison_ready),\n       trace_duration_seconds=tonumber(trace_duration_seconds),\n       trace_cost_usd=tonumber(trace_cost_usd),\n       judge_cost_usd=tonumber(judge_cost_usd),\n       supervisor_output_tokens=tonumber(supervisor_output_tokens),\n       supervisor_direct_output_tokens=tonumber(supervisor_direct_output_tokens),\n       non_supervisor_output_tokens=tonumber(non_supervisor_output_tokens),\n       trace_input_tokens=tonumber(trace_input_tokens),\n       trace_output_tokens=tonumber(trace_output_tokens),\n       trace_total_tokens=tonumber(trace_total_tokens),\n       span_count=tonumber(span_count),\n       llm_call_count=tonumber(llm_call_count),\n       tool_call_count=tonumber(tool_call_count),\n       retriever_call_count=tonumber(retriever_call_count),\n       error_span_count=tonumber(error_span_count),\n       timeout_llm_call_count=tonumber(timeout_llm_call_count)\n| eval experiment_short=substr(experiment_id,1,8),\n       series_label=application_model.\" · v\".dataset_version.\" · \".experiment_short,\n       trace_label=\"T\".printf(\"%02d\",trace_sequence)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| stats sum(llm_call_count) AS llm_calls\n        sum(tool_call_count) AS tool_calls\n        sum(retriever_call_count) AS retriever_calls\n        sum(span_count) AS spans\n        sum(error_span_count) AS error_spans\n        sum(timeout_llm_call_count) AS timeout_llm_calls\n        by experiment_id series_label\n| eval Health=if(error_spans>0 OR timeout_llm_calls>0,\"WARNING\",\"OK\"),\n       llm_calls=printf(\"%.2f\",llm_calls),\n       tool_calls=printf(\"%.2f\",tool_calls),\n       retriever_calls=printf(\"%.2f\",retriever_calls),\n       spans=printf(\"%.2f\",spans),\n       error_spans=printf(\"%.2f\",error_spans),\n       timeout_llm_calls=printf(\"%.2f\",timeout_llm_calls)\n| rename series_label AS Experiment, llm_calls AS \"LLM calls\",\n         tool_calls AS \"Tool calls\", retriever_calls AS \"Retriever calls\",\n         spans AS Spans, error_spans AS \"Error spans\",\n         timeout_llm_calls AS \"Timed-out LLM calls\"\n| table Experiment \"LLM calls\" \"Tool calls\" \"Retriever calls\" Spans \"Error spans\" \"Timed-out LLM calls\" Health",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Runtime complexity"
+    },
+    "ds_efficiency": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval ground_truth_adherence_pass=tonumber(ground_truth_adherence_pass),\n       ground_truth_adherence_scored=tonumber(ground_truth_adherence_scored),\n       comparison_ready=tonumber(comparison_ready),\n       trace_duration_seconds=tonumber(trace_duration_seconds),\n       trace_cost_usd=tonumber(trace_cost_usd),\n       judge_cost_usd=tonumber(judge_cost_usd),\n       supervisor_output_tokens=tonumber(supervisor_output_tokens),\n       supervisor_direct_output_tokens=tonumber(supervisor_direct_output_tokens),\n       non_supervisor_output_tokens=tonumber(non_supervisor_output_tokens),\n       trace_input_tokens=tonumber(trace_input_tokens),\n       trace_output_tokens=tonumber(trace_output_tokens),\n       trace_total_tokens=tonumber(trace_total_tokens),\n       span_count=tonumber(span_count),\n       llm_call_count=tonumber(llm_call_count),\n       tool_call_count=tonumber(tool_call_count),\n       retriever_call_count=tonumber(retriever_call_count),\n       error_span_count=tonumber(error_span_count),\n       timeout_llm_call_count=tonumber(timeout_llm_call_count)\n| eval experiment_short=substr(experiment_id,1,8),\n       series_label=application_model.\" · v\".dataset_version.\" · \".experiment_short,\n       trace_label=\"T\".printf(\"%02d\",trace_sequence)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| stats sum(trace_output_tokens) AS output_tokens\n        sum(trace_total_tokens) AS total_tokens\n        sum(trace_duration_seconds) AS duration_seconds\n        sum(trace_cost_usd) AS cost_usd\n        by experiment_id series_label\n| eval output_tokens_per_second=if(duration_seconds>0,output_tokens/duration_seconds,null()),\n       cost_per_1k_total_tokens_usd=if(total_tokens>0,1000*cost_usd/total_tokens,null())\n| eval \"Output tokens / second\"=printf(\"%.2f\",output_tokens_per_second),\n       \"Cost / 1K total tokens\"=case(isnull(cost_per_1k_total_tokens_usd),null(),cost_per_1k_total_tokens_usd=0,\"$0.00\",abs(cost_per_1k_total_tokens_usd)>=0.1,\"$\".printf(\"%.2f\",cost_per_1k_total_tokens_usd),abs(cost_per_1k_total_tokens_usd)>=0.01,\"$\".printf(\"%.3f\",cost_per_1k_total_tokens_usd),abs(cost_per_1k_total_tokens_usd)>=0.001,\"$\".printf(\"%.4f\",cost_per_1k_total_tokens_usd),abs(cost_per_1k_total_tokens_usd)>=0.0001,\"$\".printf(\"%.5f\",cost_per_1k_total_tokens_usd),abs(cost_per_1k_total_tokens_usd)>=0.00001,\"$\".printf(\"%.6f\",cost_per_1k_total_tokens_usd),abs(cost_per_1k_total_tokens_usd)>=0.000001,\"$\".printf(\"%.7f\",cost_per_1k_total_tokens_usd),abs(cost_per_1k_total_tokens_usd)>=0.0000001,\"$\".printf(\"%.8f\",cost_per_1k_total_tokens_usd),abs(cost_per_1k_total_tokens_usd)>=0.00000001,\"$\".printf(\"%.9f\",cost_per_1k_total_tokens_usd),abs(cost_per_1k_total_tokens_usd)>=0.000000001,\"$\".printf(\"%.10f\",cost_per_1k_total_tokens_usd),1=1,\"$\".printf(\"%.12f\",cost_per_1k_total_tokens_usd)),\n       output_tokens=tostring(output_tokens,\"commas\").\".00\",\n       total_tokens=tostring(total_tokens,\"commas\").\".00\"\n| rename series_label AS Experiment, output_tokens AS \"Output tokens\",\n         total_tokens AS \"Total tokens\"\n| table Experiment \"Output tokens\" \"Total tokens\" \"Output tokens / second\" \"Cost / 1K total tokens\"",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Efficiency from aggregate totals"
+    },
+    "ds_trace_table": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval ground_truth_adherence_pass=tonumber(ground_truth_adherence_pass),\n       ground_truth_adherence_scored=tonumber(ground_truth_adherence_scored),\n       comparison_ready=tonumber(comparison_ready),\n       trace_duration_seconds=tonumber(trace_duration_seconds),\n       trace_cost_usd=tonumber(trace_cost_usd),\n       judge_cost_usd=tonumber(judge_cost_usd),\n       supervisor_output_tokens=tonumber(supervisor_output_tokens),\n       supervisor_direct_output_tokens=tonumber(supervisor_direct_output_tokens),\n       non_supervisor_output_tokens=tonumber(non_supervisor_output_tokens),\n       trace_input_tokens=tonumber(trace_input_tokens),\n       trace_output_tokens=tonumber(trace_output_tokens),\n       trace_total_tokens=tonumber(trace_total_tokens),\n       span_count=tonumber(span_count),\n       llm_call_count=tonumber(llm_call_count),\n       tool_call_count=tonumber(tool_call_count),\n       retriever_call_count=tonumber(retriever_call_count),\n       error_span_count=tonumber(error_span_count),\n       timeout_llm_call_count=tonumber(timeout_llm_call_count)\n| eval experiment_short=substr(experiment_id,1,8),\n       series_label=application_model.\" · v\".dataset_version.\" · \".experiment_short,\n       trace_label=\"T\".printf(\"%02d\",trace_sequence)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| eval \"GT result\"=case(ground_truth_adherence_scored!=1,\"Not scored\",\n                        ground_truth_adherence_pass=1,\"Pass\",\n                        ground_truth_adherence_pass=0,\"Fail\",\n                        1=1,\"Not scored\"),\n       \"GT score\"=if(ground_truth_adherence_scored=1,printf(\"%.2f\",ground_truth_adherence_score),\"—\"),\n       \"Duration (s)\"=printf(\"%.2f\",trace_duration_seconds),\n       \"Cost (USD)\"=case(isnull(trace_cost_usd),null(),trace_cost_usd=0,\"$0.00\",abs(trace_cost_usd)>=0.1,\"$\".printf(\"%.2f\",trace_cost_usd),abs(trace_cost_usd)>=0.01,\"$\".printf(\"%.3f\",trace_cost_usd),abs(trace_cost_usd)>=0.001,\"$\".printf(\"%.4f\",trace_cost_usd),abs(trace_cost_usd)>=0.0001,\"$\".printf(\"%.5f\",trace_cost_usd),abs(trace_cost_usd)>=0.00001,\"$\".printf(\"%.6f\",trace_cost_usd),abs(trace_cost_usd)>=0.000001,\"$\".printf(\"%.7f\",trace_cost_usd),abs(trace_cost_usd)>=0.0000001,\"$\".printf(\"%.8f\",trace_cost_usd),abs(trace_cost_usd)>=0.00000001,\"$\".printf(\"%.9f\",trace_cost_usd),abs(trace_cost_usd)>=0.000000001,\"$\".printf(\"%.10f\",trace_cost_usd),1=1,\"$\".printf(\"%.12f\",trace_cost_usd)),\n       supervisor_output_tokens=printf(\"%.2f\",supervisor_output_tokens),\n       supervisor_direct_output_tokens=printf(\"%.2f\",supervisor_direct_output_tokens),\n       llm_call_count=printf(\"%.2f\",llm_call_count),\n       tool_call_count=printf(\"%.2f\",tool_call_count),\n       error_span_count=printf(\"%.2f\",error_span_count)\n| rename trace_sequence AS Seq, scenario_input AS Scenario,\n         application_model AS Model, dataset_version AS \"Dataset v\",\n         supervisor_output_tokens AS \"Supervisor aggregate\",\n         supervisor_direct_output_tokens AS \"Supervisor direct\",\n         llm_call_count AS \"LLM calls\", tool_call_count AS \"Tool calls\",\n         error_span_count AS Errors\n| table Seq Scenario Model \"Dataset v\" \"GT result\" \"GT score\"\n        \"Supervisor aggregate\" \"Supervisor direct\" \"Duration (s)\" \"Cost (USD)\"\n        \"LLM calls\" \"Tool calls\" Errors trace_id\n| sort 0 Seq Model",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Trace details"
+    },
+    "ds_trace_detail": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup banking_cn_economics.csv\n| eval ground_truth_adherence_pass=tonumber(ground_truth_adherence_pass),\n       ground_truth_adherence_scored=tonumber(ground_truth_adherence_scored),\n       comparison_ready=tonumber(comparison_ready),\n       trace_duration_seconds=tonumber(trace_duration_seconds),\n       trace_cost_usd=tonumber(trace_cost_usd),\n       judge_cost_usd=tonumber(judge_cost_usd),\n       supervisor_output_tokens=tonumber(supervisor_output_tokens),\n       supervisor_direct_output_tokens=tonumber(supervisor_direct_output_tokens),\n       non_supervisor_output_tokens=tonumber(non_supervisor_output_tokens),\n       trace_input_tokens=tonumber(trace_input_tokens),\n       trace_output_tokens=tonumber(trace_output_tokens),\n       trace_total_tokens=tonumber(trace_total_tokens),\n       span_count=tonumber(span_count),\n       llm_call_count=tonumber(llm_call_count),\n       tool_call_count=tonumber(tool_call_count),\n       retriever_call_count=tonumber(retriever_call_count),\n       error_span_count=tonumber(error_span_count),\n       timeout_llm_call_count=tonumber(timeout_llm_call_count)\n| eval experiment_short=substr(experiment_id,1,8),\n       series_label=application_model.\" · v\".dataset_version.\" · \".experiment_short,\n       trace_label=\"T\".printf(\"%02d\",trace_sequence)\n| search application_model=\"$tok_model$\"\n         experiment_name=\"$tok_experiment$\"\n         scenario_key=\"$tok_scenario$\"\n| search trace_id=\"$tok_trace$\"\n| eval ground_truth=replace(ground_truth,\"\\\\\\\\n\",printf(\"%c\",10)),\n       generated_output=replace(generated_output,\"\\\\\\\\n\",printf(\"%c\",10)),\n       ground_truth_adherence_rationale=replace(ground_truth_adherence_rationale,\"\\\\\\\\n\",printf(\"%c\",10)),\n       detail=mvappend(\"Scenario|||\".scenario_input,\n                       \"Ground Truth|||\".ground_truth,\n                       \"Generated Output|||\".generated_output,\n                       \"Judge Rationale|||\".ground_truth_adherence_rationale,\n                       \"Tools|||\".unique_tools)\n| mvexpand detail\n| rex field=detail \"^(?<Section>[^|]+)\\|\\|\\|(?<Content>[\\s\\S]*)$\"\n| table Section Content",
+        "queryParameters": {
+          "earliest": "0",
+          "latest": ""
+        }
+      },
+      "name": "Selected trace detail"
+    }
+  },
+  "layout": {
+    "type": "absolute",
+    "options": {
+      "width": 1440,
+      "height": 3585,
+      "showTitleAndDescription": true,
+      "backgroundColor": "#0B1220"
+    },
+    "structure": [
+      {
+        "item": "viz_kpi",
+        "type": "block",
+        "position": {
+          "x": 20,
+          "y": 0,
+          "w": 450,
+          "h": 350
+        }
+      },
+      {
+        "item": "viz_duration_total",
+        "type": "block",
+        "position": {
+          "x": 480,
+          "y": 0,
+          "w": 460,
+          "h": 350
+        }
+      },
+      {
+        "item": "viz_cost_total",
+        "type": "block",
+        "position": {
+          "x": 950,
+          "y": 0,
+          "w": 470,
+          "h": 350
+        }
+      },
+      {
+        "item": "viz_quality",
+        "type": "block",
+        "position": {
+          "x": 20,
+          "y": 360,
+          "w": 1400,
+          "h": 430
+        }
+      },
+      {
+        "item": "viz_supervisor_trace",
+        "type": "block",
+        "position": {
+          "x": 20,
+          "y": 800,
+          "w": 900,
+          "h": 300
+        }
+      },
+      {
+        "item": "viz_supervisor_total",
+        "type": "block",
+        "position": {
+          "x": 930,
+          "y": 800,
+          "w": 490,
+          "h": 300
+        }
+      },
+      {
+        "item": "viz_duration_trace",
+        "type": "block",
+        "position": {
+          "x": 20,
+          "y": 1110,
+          "w": 690,
+          "h": 300
+        }
+      },
+      {
+        "item": "viz_cost_trace",
+        "type": "block",
+        "position": {
+          "x": 720,
+          "y": 1110,
+          "w": 700,
+          "h": 300
+        }
+      },
+      {
+        "item": "viz_token_composition",
+        "type": "block",
+        "position": {
+          "x": 20,
+          "y": 1420,
+          "w": 690,
+          "h": 300
+        }
+      },
+      {
+        "item": "viz_efficiency",
+        "type": "block",
+        "position": {
+          "x": 720,
+          "y": 1420,
+          "w": 700,
+          "h": 300
+        }
+      },
+      {
+        "item": "viz_complexity",
+        "type": "block",
+        "position": {
+          "x": 20,
+          "y": 1730,
+          "w": 1400,
+          "h": 270
+        }
+      },
+      {
+        "item": "viz_trace_table",
+        "type": "block",
+        "position": {
+          "x": 20,
+          "y": 2010,
+          "w": 1400,
+          "h": 480
+        }
+      },
+      {
+        "item": "viz_detail_hint",
+        "type": "block",
+        "position": {
+          "x": 20,
+          "y": 2500,
+          "w": 1400,
+          "h": 105
+        }
+      },
+      {
+        "item": "viz_trace_detail",
+        "type": "block",
+        "position": {
+          "x": 20,
+          "y": 2615,
+          "w": 1400,
+          "h": 600
+        }
+      },
+      {
+        "item": "viz_integrity",
+        "type": "block",
+        "position": {
+          "x": 20,
+          "y": 3225,
+          "w": 1400,
+          "h": 340
+        }
+      }
+    ],
+    "globalInputs": [
+      "input_model",
+      "input_experiment",
+      "input_scenario"
+    ]
+  }
+}
+  ]]></definition>
+  <meta type="hiddenElements"><![CDATA[
+{
+  "hideEdit": false,
+  "hideOpenInSearch": false,
+  "hideExport": false
+}
+  ]]></meta>
+</dashboard>

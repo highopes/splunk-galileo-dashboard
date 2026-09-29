@@ -1,0 +1,23 @@
+[]
+access = read : [ * ], write : [ admin, power ]
+export = none
+
+[views/banking_multi_agent_model_economics]
+access = read : [ * ], write : [ admin, power ]
+export = none
+owner = nobody
+
+[nav/default]
+access = read : [ * ], write : [ admin, power ]
+export = none
+owner = nobody
+
+[transforms/banking_cn_economics]
+access = read : [ * ], write : [ admin, power ]
+export = none
+owner = nobody
+
+[lookups/banking_cn_economics.csv]
+access = read : [ * ], write : [ admin, power ]
+export = none
+owner = nobody
